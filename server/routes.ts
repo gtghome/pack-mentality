@@ -62,44 +62,45 @@ function scoreRound(roomId: string, round: number) {
     answerGroups[normalized].push(ans.playerId);
   }
 
-  // Find the most common answer
-  let maxCount = 0;
-  let winningGroup: string[] = [];
-  let winningAnswer = "";
-  for (const [normalized, pids] of Object.entries(answerGroups)) {
-    if (pids.length > maxCount) {
-      maxCount = pids.length;
-      winningGroup = pids;
-      winningAnswer = normalized;
-    }
-  }
+  // Sort groups from most common to least common
+  const sortedGroups = Object.entries(answerGroups)
+    .sort((a, b) => b[1].length - a[1].length);
 
-  // Award points: points = number of players in winning group
-  // But only if more than 1 player (or all players answered the same)
-  const scoreAwarded = maxCount > 1 ? maxCount : 0;
+  const maxCount = sortedGroups[0]?.[1].length ?? 0;
+  const winningNormalized = sortedGroups[0]?.[0] ?? "";
+
+  // Points: 100,000 for the top group, scale down 10,000 per rank
+  // Solo answers (group of 1) only score if ALL players answered uniquely
+  const allUnique = sortedGroups.every(([, pids]) => pids.length === 1);
 
   const scoreChanges: Record<string, number> = {};
-  if (scoreAwarded > 0) {
-    for (const pid of winningGroup) {
-      const player = storage.getPlayer(pid);
-      if (player) {
-        const newScore = player.score + scoreAwarded;
-        storage.updatePlayer(pid, { score: newScore });
-        scoreChanges[pid] = scoreAwarded;
+
+  sortedGroups.forEach(([normalized, pids], rank) => {
+    const points = Math.max(0, 100000 - rank * 10000);
+    // Award points if group has 2+ people, OR everyone answered uniquely (no one matched)
+    const shouldScore = pids.length > 1 || allUnique;
+    if (shouldScore && points > 0) {
+      for (const pid of pids) {
+        const player = storage.getPlayer(pid);
+        if (player) {
+          storage.updatePlayer(pid, { score: player.score + points });
+          scoreChanges[pid] = points;
+        }
       }
     }
-  }
+  });
 
   // Build reveal data
   const revealData = {
-    answerGroups: Object.entries(answerGroups).map(([text, pids]) => ({
-      answer: allAnswers.find(a => normalizeAnswer(a.answer) === text)?.answer || text,
+    answerGroups: sortedGroups.map(([normalized, pids], rank) => ({
+      answer: allAnswers.find(a => normalizeAnswer(a.answer) === normalized)?.answer || normalized,
       playerIds: pids,
       count: pids.length,
-      isWinner: pids === winningGroup || JSON.stringify(pids.sort()) === JSON.stringify(winningGroup.sort()),
-    })).sort((a, b) => b.count - a.count),
+      isWinner: rank === 0 && pids.length > 1,
+      points: Math.max(0, 100000 - rank * 10000),
+    })),
     scoreChanges,
-    winningAnswer: allAnswers.find(a => normalizeAnswer(a.answer) === winningAnswer)?.answer || winningAnswer,
+    winningAnswer: allAnswers.find(a => normalizeAnswer(a.answer) === winningNormalized)?.answer || winningNormalized,
     winnerCount: maxCount,
   };
 

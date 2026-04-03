@@ -2,6 +2,10 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import type { Player } from "../../../shared/schema";
 
+function fmtPts(n: number) {
+  return n >= 1000 ? (n / 1000).toLocaleString() + "k" : String(n);
+}
+
 interface Props {
   players: Player[];
   myPlayerId: string;
@@ -10,11 +14,6 @@ interface Props {
 }
 
 const MEDALS = ["🥇", "🥈", "🥉"];
-const PODIUM_MSGS = [
-  "Champion of the herd! 🐄👑",
-  "Almost the herd leader!",
-  "A solid showing!",
-];
 
 export default function FinishedScreen({ players, myPlayerId, isHost, onPlayAgain }: Props) {
   const sorted = [...players].sort((a, b) => b.score - a.score);
@@ -24,37 +23,35 @@ export default function FinishedScreen({ players, myPlayerId, isHost, onPlayAgai
   const amWinner = myPlayer?.id === winner?.id;
 
   return (
-    <div className="screen-wrap">
-      <div className="blob blob-1" />
-      <div className="blob blob-2" />
-      <div className="blob blob-3" />
+    <div className="finished-root">
+      {/* Hero image background */}
+      <div className="finished-hero-img">
+        <img src="/hero.webp" alt="Pack Mentality" className="hero-img" />
+        <div className="finished-hero-overlay" />
+      </div>
 
-      <div className="finished-card">
-        <div className="finished-crown">
-          {winner?.emoji}
+      <div className="finished-body">
+        <div className="finished-winner-block">
+          <div className="finished-crown">{winner?.emoji}</div>
+          <h1 className="finished-title">{amWinner ? "You won! 🎉" : `${winner?.name} wins!`}</h1>
+          <p className="finished-sub">
+            {amWinner ? "You thought exactly like the herd!" : `${winner?.name} with ${fmtPts(winner?.score ?? 0)} points`}
+          </p>
         </div>
-        <h1 className="finished-title">
-          {amWinner ? "You won! 🎉" : `${winner?.name} wins!`}
-        </h1>
-        <p className="finished-sub">
-          {amWinner
-            ? "You thought exactly like the herd!"
-            : `${winner?.name} thought like the herd better than anyone.`}
-        </p>
 
-        {/* Podium */}
+        {/* Podium top 3 */}
         <div className="podium">
           {sorted.slice(0, Math.min(3, sorted.length)).map((p, idx) => (
             <div key={p.id} className={`podium-item podium-${idx + 1} ${p.id === myPlayerId ? "podium-me" : ""}`}>
               <div className="podium-emoji">{p.emoji}</div>
               <div className="podium-medal">{MEDALS[idx]}</div>
               <div className="podium-name">{p.name}</div>
-              <div className="podium-score">{p.score} pts</div>
+              <div className="podium-score">{fmtPts(p.score)}</div>
             </div>
           ))}
         </div>
 
-        {/* Full leaderboard */}
+        {/* Rest of leaderboard */}
         {sorted.length > 3 && (
           <div className="full-board">
             {sorted.slice(3).map((p, idx) => (
@@ -62,15 +59,10 @@ export default function FinishedScreen({ players, myPlayerId, isHost, onPlayAgai
                 <span className="score-rank">{idx + 4}</span>
                 <span className="score-emoji">{p.emoji}</span>
                 <span className="score-name">{p.name}</span>
-                <span className="score-pts">{p.score} pts</span>
+                <span className="score-pts"><strong>{fmtPts(p.score)}</strong></span>
               </div>
             ))}
           </div>
-        )}
-
-        {/* My result if not top 3 */}
-        {myPos >= 3 && (
-          <p className="my-pos-note">You finished #{myPos + 1} with {myPlayer?.score} points</p>
         )}
 
         {isHost ? (
